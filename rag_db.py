@@ -1,6 +1,6 @@
 import glob
-from dotenv import load_dotenv
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from openai import OpenAI
 from langchain_community.document_loaders import PyPDFLoader
@@ -10,54 +10,64 @@ from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_text_splitters import CharacterTextSplitter
 from langchain_chroma import Chroma
 
-load_dotenv(override=True)
-openai = OpenAI()
+from config import MODEL_NAME, CHUNK_SIZE, CHUNK_OVERLAP, DB_NAME, CV_ROOT, K_CLOSEST
 
 class DB:
     
-    MODEL = "gpt-4o-mini"
+    #MODEL = "gpt-4o-mini"
     embeddings = OpenAIEmbeddings()
+    openai = OpenAI()
     
-    def __init__(self, temperature=0, chunk_size=500, chunk_overlap=50, db_name="cv_db", cv_root="cv_base/*", k_closest=3):
+    def __init__(self, temperature=0):
         self.temperature = temperature
-        self.text_splitter = CharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
-        self.cvs = glob.glob(cv_root)
-        self.db_name = db_name
-        self.k_closest = k_closest
+        self.text_splitter = CharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
+        self.cvs = glob.glob(CV_ROOT)
         self.cv_contents = [] 
         self.candidate_names = []
 
     def set_llm(self):
-        return ChatOpenAI(temperature=self.temperature, model=self.MODEL)
+        return ChatOpenAI(temperature=self.temperature, model=MODEL_NAME)
 
     def set_memory(self):
-        return ConversationBufferMemory(memory_key='rag_history', return_messages=True)
+        return ConversationBufferMemory(memory_key='chat_history', return_messages=True)
 
-    def read_cvs(self):
-        """Read in the content of CVs in the folder."""        
-        for cv in self.cvs:
-            loader = PyPDFLoader(cv)
-            pages = loader.load() # 2 objects for 2 pages
+    def read_cvs(self, max_workers=8):
+        """Read and process CVs in parallel using threads."""
+        def process_cv(cv_path):
+            loader = PyPDFLoader(cv_path)
+            pages = loader.load()
             applicant_name = self.retrieve_name(pages[0].page_content)
             for page in pages:
                 page.metadata["applicant_name"] = applicant_name
-                self.cv_contents.append(page)
-            self.candidate_names.append(applicant_name)
+            return applicant_name, pages
 
-    def set_vectorstore(self):
+        self.cv_contents.clear()
+        self.candidate_names.clear()
+    
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(process_cv, cv): cv for cv in self.cvs}
+            for future in as_completed(futures):
+                name, pages = future.result()
+                if name:
+                    self.candidate_names.append(name)
+                    self.cv_contents.extend(pages)
+    
+        print(f"Loaded {len(self.cv_contents)} pages from {len(self.candidate_names)} CVs.")
+
+    def get_vectorstore(self):
         """Divide texts into chunks."""
         chunks = self.text_splitter.split_documents(self.cv_contents)
         
-        if os.path.exists(self.db_name):
-            Chroma(persist_directory=self.db_name, embedding_function=self.embeddings).delete_collection()
+        if os.path.exists(DB_NAME):
+            Chroma(persist_directory=DB_NAME, embedding_function=self.embeddings).delete_collection()
         
-        vectorstore = Chroma.from_documents(documents=chunks, embedding=self.embeddings, persist_directory=self.db_name)
+        vectorstore = Chroma.from_documents(documents=chunks, embedding=self.embeddings, persist_directory=DB_NAME)
         return vectorstore
 
     def set_retriever(self):
-        return self.set_vectorstore().as_retriever(search_kwargs={"k": self.k_closest})
+        return self.get_vectorstore().as_retriever(search_kwargs={"k": K_CLOSEST})
 
-    def set_conver_chain(self):
+    def get_conver_chain(self):
         self.read_cvs()
         llm = self.set_llm()
         retriever = self.set_retriever()
@@ -97,6 +107,6 @@ class DB:
             {"role": "user", "content": user_prompt}
         ]
     
-        response = openai.chat.completions.create(model=self.MODEL, messages=messages)
+        response = self.openai.chat.completions.create(model=MODEL_NAME, messages=messages)
     
         return response.choices[0].message.content
