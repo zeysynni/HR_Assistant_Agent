@@ -2,8 +2,8 @@ from assistant import Assistant
 import gradio as gr
 
 # Initialize the Assistant once at startup
-HR = Assistant()
-agent = HR.build_agent()
+hr_assistant = Assistant()
+agent = hr_assistant.build_agent()
 
 def chat(message, history):
     """Main chat handler for Gradio UI."""
@@ -11,7 +11,7 @@ def chat(message, history):
         response = agent.invoke({"input": message})
         return response["output"]
     except Exception as e:
-        return f"⚠️ An error occurred: {e}"
+        return f"An error occurred: {e}"
 
 if __name__ == "__main__":
     with gr.Blocks() as view:
