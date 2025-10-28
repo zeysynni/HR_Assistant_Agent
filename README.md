@@ -8,7 +8,7 @@ An AI-powered assistant that helps HR professionals analyze job postings and mat
 
 **HR Assistant** is an intelligent agent built using **LangChain**, **OpenAI**, and **Gradio**.  
 It can:
-- Accept a **LinkedIn job URL** via the Gradio chat interface.  
+- Accept a **Job URL** via the Gradio chat interface.  
 - **Scrape** and extract detailed job descriptions from the webpage.  
 - Retrieve candidate information from a **vector-based CV database** built from PDF resumes.  
 - Use **Retrieval-Augmented Generation (RAG)** to reason about candidate-job fit.  
@@ -25,7 +25,7 @@ It can:
   Automatically logs in and extracts structured information from job postings.
 
 - 📄 **RAG-based Candidate Search**  
-  Converts candidate CVs (PDF files) into embeddings and stores them in a **Chroma vector database** for semantic retrieval.
+  Converts candidate CVs (PDF files) parralel into embeddings and stores them in a **Chroma vector database** for semantic retrieval.
 
 - 🤖 **LLM Agent with Tools**  
   Integrates multiple tools (scraping, retrieval, reasoning) into a unified conversational agent.
