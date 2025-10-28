@@ -25,7 +25,7 @@ It can:
   Automatically logs in and extracts structured information from job postings.
 
 - 📄 **RAG-based Candidate Search**  
-  Converts candidate CVs (PDF files) parralel into embeddings and stores them in a **Chroma vector database** for semantic retrieval.
+  Converts candidate CVs (PDF files) parallel into embeddings and stores them in a **Chroma vector database** for semantic retrieval.
 
 - 🤖 **LLM Agent with Tools**  
   Integrates multiple tools (scraping, retrieval, reasoning) into a unified conversational agent.
